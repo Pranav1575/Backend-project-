@@ -16,15 +16,19 @@ const MongoStore = require('connect-mongo');
 const flash = require('connect-flash');
 const crypto = require('crypto');
 const methodOverride = require("method-override");
+const isProduction = process.env.NODE_ENV === "production";
 try {
-    require("dotenv").config();
+    // In production, rely on platform env vars (Render/Vercel/etc.), not local .env files.
+    if (!isProduction) {
+        require("dotenv").config();
+    }
 } catch (err) {
     // dotenv is optional; app still works with fallback values
 }
-const isProduction = process.env.NODE_ENV === "production";
 const rawMongoUri =
     process.env.MONGO_URI ||
     process.env.MONGODB_URI ||
+    process.env.DATABASE_URL ||
     (!isProduction ? "mongodb://127.0.0.1:27017/BackendProject1" : null);
 const isLocalMongoUri =
     typeof rawMongoUri === "string" &&
