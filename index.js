@@ -12,8 +12,10 @@ try {
     console.warn("ejs-mate not found, using default EJS engine");
 }
 const session = require('express-session');
+const MongoStore = require('connect-mongo');
 const flash = require('connect-flash');
 const crypto = require('crypto');
+const methodOverride = require("method-override");
 try {
     require("dotenv").config();
 } catch (err) {
@@ -26,6 +28,7 @@ const upload = multer({ storage });
 app.use(express.urlencoded({ extended: true }));
 // parse application/json
 app.use(express.json());
+app.use(methodOverride("_method"));
 app.use(express.static(path.join(__dirname,'/public')));
 
 
@@ -50,11 +53,21 @@ if (engine) {
     app.engine("ejs", engine);
 }
 
+// session store (use MongoDB, not MemoryStore)
+const store = MongoStore.create({
+    mongoUrl: process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/BackendProject1',
+    touchAfter: 24 * 3600
+});
+
+store.on('error', (err) => {
+    console.error('Session store error:', err);
+});
 // session configuration (use env var in production)
 const sessionOption = {
     secret: process.env.SESSION_SECRET || "mysupersecretkey",
+    store,
     resave: false,
-    saveUninitialized: true,
+    saveUninitialized: false,
     cookie: {
         maxAge: 24 * 60 * 60 * 1000, // 1 day
         httpOnly: true,
@@ -84,6 +97,13 @@ function isLoggedIn(req, res, next) {
     next();
 }
 
+function isListingOwner(listing, userId) {
+    if (!listing || !listing.owner || !userId) {
+        return false;
+    }
+    return listing.owner.toString() === userId.toString();
+}
+
 async function isOwner(req, res, next) {
     const { id } = req.params;
     const listing = await Listing.findById(id);
@@ -91,7 +111,7 @@ async function isOwner(req, res, next) {
         req.flash("error", "Listing not found");
         return res.redirect("/listings");
     }
-    if (!req.session.userId || listing.owner.toString() !== req.session.userId.toString()) {
+    if (!isListingOwner(listing, req.session.userId)) {
         req.flash("error", "Only the owner can do that");
         return res.redirect(`/listings/${id}`);
     }
@@ -186,6 +206,10 @@ app.get('/listings', isLoggedIn, async (req, res) => {
          //edit route to display the edit form for a listing
             app.get('/listings/:id/edit', isLoggedIn, isOwner, async (req, res) => { 
                 const findid=await Listing.findById(req.params.id);
+                if (!findid) {
+                    req.flash("error", "Listing not found");
+                    return res.redirect("/listings");
+                }
                
                 res.render("listing/update",{findid});
              });
@@ -199,6 +223,10 @@ app.get('/listings', isLoggedIn, async (req, res) => {
                             updateData.image = req.file.path;
                         }
                         const updatedlisting = await Listing.findByIdAndUpdate(id, updateData, { new: true });
+                        if (!updatedlisting) {
+                            req.flash('error', 'Listing not found');
+                            return res.redirect('/listings');
+                        }
                         req.flash('success', 'Listing updated successfully!');
                         return res.redirect(`/listings/${updatedlisting._id}`);
                     } catch (err) {
@@ -244,11 +272,6 @@ app.get('/listings', isLoggedIn, async (req, res) => {
                          return res.redirect('/listings');
                      }
 
-                     if (listing.owner.toString() !== req.session.userId.toString()) {
-                         req.flash('error', 'Only the listing owner can add a review');
-                         return res.redirect(`/listings/${id}`);
-                     }
-
                      const newReview = new Review(req.body.review);
                      newReview.author = req.session.userId;
                      await newReview.save();
@@ -261,14 +284,16 @@ app.get('/listings', isLoggedIn, async (req, res) => {
                  app.post('/listings/:id/reviews/:reviewId/delete', isLoggedIn, async (req, res) => {
                      const { id, reviewId } = req.params;
                      const listing = await Listing.findById(id);
+                     const review = await Review.findById(reviewId);
 
-                     if (!listing) {
-                         req.flash('error', 'Listing not found');
+                     if (!listing || !review) {
+                         req.flash('error', 'Listing or review not found');
                          return res.redirect('/listings');
                      }
 
-                     if (listing.owner.toString() !== req.session.userId.toString()) {
-                         req.flash('error', 'Only the listing owner can delete reviews');
+                     const isReviewAuthor = review.author && review.author.toString() === req.session.userId.toString();
+                     if (!isReviewAuthor && !isListingOwner(listing, req.session.userId)) {
+                         req.flash('error', 'Only the review author or listing owner can delete reviews');
                          return res.redirect(`/listings/${id}`);
                      }
 
@@ -308,6 +333,8 @@ app.post("/signup", async (req, res) => {
         });
 
         await newUser.save();
+        req.session.userId = newUser._id;
+        req.session.email = newUser.email;
 
         req.flash("success", "Account created successfully!");
         res.redirect("/listings");
@@ -353,14 +380,13 @@ app.post("/login", async (req, res) => {
 });
 /*logout page */
 app.get("/logout", (req, res) => {
-
     req.session.destroy((err) => {
         if(err){
             console.log(err);
             return res.redirect("/listings");
         }
         res.clearCookie("connect.sid");
-        res.render("listing/logout");
+        res.redirect("/login");
     });
 
 });
@@ -371,8 +397,4 @@ app.get("/logout", (req, res) => {
 app.listen(3000,()=>{
     console.log("server is running on port 3000");
 });
-
-
-
-
 
