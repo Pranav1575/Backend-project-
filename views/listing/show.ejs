@@ -1,0 +1,55 @@
+﻿<% layout('/layouts/boilerplate') %>
+
+<h1 class="mb-3"><%= findid.title %></h1>
+
+<div class="card mb-4">
+  <img src="<%= findid.image %>" class="card-img-top" alt="<%= findid.title %>">
+  <div class="card-body">
+    <p class="card-text"><%= findid.description %></p>
+    <p class="mb-1"><strong>Price:</strong> INR <%= findid.price %></p>
+    <p class="mb-1"><strong>Location:</strong> <%= findid.location %>, <%= findid.country %></p>
+    <p class="mb-1"><strong>Owner:</strong> <%= findid.owner ? findid.owner.username : 'Unknown' %></p>
+    <p class="mb-3"><strong>Category:</strong> <%= findid.category %></p>
+
+    <% if (currentUser && findid.owner && currentUser.toString() === findid.owner._id.toString()) { %>
+      <a href="/listings/<%= findid._id %>/edit" class="btn btn-warning me-2">Edit</a>
+      <form action="/listings/<%= findid._id %>/delete" method="POST" class="d-inline">
+        <button class="btn btn-danger" type="submit">Delete</button>
+      </form>
+    <% } %>
+  </div>
+</div>
+
+<h3>Add Review</h3>
+<form action="/listings/<%= findid._id %>/reviews" method="POST" class="mb-4">
+  <div class="mb-3">
+    <label class="form-label">Comment</label>
+    <textarea name="review[comment]" class="form-control" required></textarea>
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Rating (1-5)</label>
+    <input type="number" name="review[rating]" min="1" max="5" class="form-control" required>
+  </div>
+  <button class="btn btn-primary" type="submit">Submit Review</button>
+</form>
+
+<h3>Reviews</h3>
+<% if (findid.reviews && findid.reviews.length) { %>
+  <% for (let review of findid.reviews) { %>
+    <div class="card mb-2">
+      <div class="card-body">
+        <p class="mb-1"><strong><%= review.author ? review.author.username : 'User' %></strong></p>
+        <p class="mb-1"><%= review.comment %></p>
+        <p class="mb-2">Rating: <%= review.rating %>/5</p>
+        <% if (currentUser && findid.owner && currentUser.toString() === findid.owner._id.toString()) { %>
+          <form action="/listings/<%= findid._id %>/reviews/<%= review._id %>/delete" method="POST">
+            <button class="btn btn-sm btn-outline-danger" type="submit">Delete Review</button>
+          </form>
+        <% } %>
+      </div>
+    </div>
+  <% } %>
+<% } else { %>
+  <p>No reviews yet.</p>
+<% } %>
+

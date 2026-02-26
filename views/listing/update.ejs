@@ -1,0 +1,52 @@
+﻿<% layout('/layouts/boilerplate') %>
+
+<h1 class="mb-3">Edit Listing</h1>
+
+<form action="/listings/<%= findid._id %>/update" method="POST" enctype="multipart/form-data" class="listing-form">
+  <div class="mb-3">
+    <label class="form-label">Title</label>
+    <input type="text" name="listing[title]" class="form-control" value="<%= findid.title %>" required>
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label">Description</label>
+    <textarea name="listing[description]" class="form-control" required><%= findid.description %></textarea>
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label">Price</label>
+    <input type="number" name="listing[price]" class="form-control" value="<%= findid.price %>" required>
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label">Country</label>
+    <input type="text" name="listing[country]" class="form-control" value="<%= findid.country %>" required>
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label">Category</label>
+    <select name="listing[category]" class="form-select" required>
+      <option value="trending" <%= findid.category === 'trending' ? 'selected' : '' %>>Trending</option>
+      <option value="rooms" <%= findid.category === 'rooms' ? 'selected' : '' %>>Rooms</option>
+      <option value="iconic-cities" <%= findid.category === 'iconic-cities' ? 'selected' : '' %>>Iconic Cities</option>
+      <option value="mountains" <%= findid.category === 'mountains' ? 'selected' : '' %>>Mountains</option>
+      <option value="castles" <%= findid.category === 'castles' ? 'selected' : '' %>>Castles</option>
+      <option value="amazing-pools" <%= findid.category === 'amazing-pools' ? 'selected' : '' %>>Amazing Pools</option>
+      <option value="camping" <%= findid.category === 'camping' ? 'selected' : '' %>>Camping</option>
+      <option value="farms" <%= findid.category === 'farms' ? 'selected' : '' %>>Farms</option>
+    </select>
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label">Location</label>
+    <input type="text" name="listing[location]" class="form-control" value="<%= findid.location %>" required>
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label">Current Image</label>
+    <img src="<%= findid.image %>" alt="Current image" class="img-fluid d-block mb-2" style="max-width: 320px;">
+    <input type="file" name="image" accept=".jpg,.jpeg,.png" class="form-control">
+  </div>
+
+  <button class="btn btn-primary" type="submit">Update Listing</button>
+</form>

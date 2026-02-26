@@ -1,4 +1,4 @@
-const express=require('express');
+﻿const express=require('express');
 const app=express();
 const mongoose=require('mongoose');
 const path=require('path');
@@ -251,9 +251,8 @@ app.get('/listings', isLoggedIn, async (req, res) => {
 
                      const newReview = new Review(req.body.review);
                      newReview.author = req.session.userId;
-                     listing.reviews.push(newReview);
                      await newReview.save();
-                     await listing.save();
+                     await Listing.findByIdAndUpdate(id, { $push: { reviews: newReview._id } });
                      req.flash('success', 'Review added successfully!');
                      res.redirect(`/listings/${id}`);
                  });
@@ -372,6 +371,8 @@ app.get("/logout", (req, res) => {
 app.listen(3000,()=>{
     console.log("server is running on port 3000");
 });
+
+
 
 
 
