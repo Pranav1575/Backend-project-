@@ -29,7 +29,7 @@ app.use(express.urlencoded({ extended: true }));
 // parse application/json
 app.use(express.json());
 app.use(methodOverride("_method"));
-app.use(express.static(path.join(__dirname,'/public')));
+app.use(express.static(path.join(__dirname, "../frontend/public")));
 
 
 
@@ -48,7 +48,7 @@ async function main() {
 }
 
 app.set("view engine","ejs");
-app.set("views",path.join(__dirname,"views"));
+app.set("views", path.join(__dirname, "../frontend/views"));
 if (engine) {
     app.engine("ejs", engine);
 }
@@ -394,7 +394,13 @@ app.get("/logout", (req, res) => {
 
 
 
-app.listen(3000,()=>{
-    console.log("server is running on port 3000");
-});
+const PORT = process.env.PORT || 3000;
+
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(`server is running on port ${PORT}`);
+    });
+}
+
+module.exports = app;
 
