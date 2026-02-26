@@ -22,10 +22,22 @@ try {
     // dotenv is optional; app still works with fallback values
 }
 const isProduction = process.env.NODE_ENV === "production";
-const mongoUri = process.env.MONGO_URI || (!isProduction ? "mongodb://127.0.0.1:27017/BackendProject1" : null);
-if (!mongoUri) {
+const rawMongoUri =
+    process.env.MONGO_URI ||
+    process.env.MONGODB_URI ||
+    (!isProduction ? "mongodb://127.0.0.1:27017/BackendProject1" : null);
+const isLocalMongoUri =
+    typeof rawMongoUri === "string" &&
+    /^mongodb(\+srv)?:\/\/(127\.0\.0\.1|localhost)(:|\/|$)/i.test(rawMongoUri);
+if (!rawMongoUri) {
     throw new Error("MONGO_URI is required in production. Add it to your deployment environment variables.");
 }
+if (isProduction && isLocalMongoUri) {
+    throw new Error(
+        "Invalid production MongoDB URI: localhost/127.0.0.1 is not reachable in cloud deploys. Set MONGO_URI (or MONGODB_URI) to your MongoDB Atlas connection string."
+    );
+}
+const mongoUri = rawMongoUri;
 const sessionSecret = process.env.SESSION_SECRET || (!isProduction ? "mysupersecretkey" : null);
 if (!sessionSecret) {
     throw new Error("SESSION_SECRET is required in production. Add it to your deployment environment variables.");
