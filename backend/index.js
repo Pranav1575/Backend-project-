@@ -21,6 +21,15 @@ try {
 } catch (err) {
     // dotenv is optional; app still works with fallback values
 }
+const isProduction = process.env.NODE_ENV === "production";
+const mongoUri = process.env.MONGO_URI || (!isProduction ? "mongodb://127.0.0.1:27017/BackendProject1" : null);
+if (!mongoUri) {
+    throw new Error("MONGO_URI is required in production. Add it to your deployment environment variables.");
+}
+const sessionSecret = process.env.SESSION_SECRET || (!isProduction ? "mysupersecretkey" : null);
+if (!sessionSecret) {
+    throw new Error("SESSION_SECRET is required in production. Add it to your deployment environment variables.");
+}
 const multer = require("multer");
 const { storage } = require("./cloudConfig");
 const upload = multer({ storage });
@@ -42,7 +51,7 @@ main().then(() => {
 .catch(err => console.log(err));
 
 async function main() {
-  await mongoose.connect(process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/BackendProject1');
+  await mongoose.connect(mongoUri);
 
   // use `await mongoose.connect('mongodb://user:password@127.0.0.1:27017/test');` if your database has auth enabled
 }
@@ -55,7 +64,7 @@ if (engine) {
 
 // session store (use MongoDB, not MemoryStore)
 const store = MongoStore.create({
-    mongoUrl: process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/BackendProject1',
+    mongoUrl: mongoUri,
     touchAfter: 24 * 3600
 });
 
@@ -64,7 +73,7 @@ store.on('error', (err) => {
 });
 // session configuration (use env var in production)
 const sessionOption = {
-    secret: process.env.SESSION_SECRET || "mysupersecretkey",
+    secret: sessionSecret,
     store,
     resave: false,
     saveUninitialized: false,
