@@ -1,0 +1,377 @@
+const express=require('express');
+const app=express();
+const mongoose=require('mongoose');
+const path=require('path');
+const Listing=require('./models/listing');
+const Review=require('./models/reviews');
+const User = require("./models/user");
+let engine = null;
+try {
+    engine = require('ejs-mate');
+} catch (err) {
+    console.warn("ejs-mate not found, using default EJS engine");
+}
+const session = require('express-session');
+const flash = require('connect-flash');
+const crypto = require('crypto');
+try {
+    require("dotenv").config();
+} catch (err) {
+    // dotenv is optional; app still works with fallback values
+}
+const multer = require("multer");
+const { storage } = require("./cloudConfig");
+const upload = multer({ storage });
+// parse application/x-www-form-urlencoded
+app.use(express.urlencoded({ extended: true }));
+// parse application/json
+app.use(express.json());
+app.use(express.static(path.join(__dirname,'/public')));
+
+
+
+
+
+main().then(() => {
+    console.log("MongoDB Connected Successfully");
+})
+
+.catch(err => console.log(err));
+
+async function main() {
+  await mongoose.connect(process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/BackendProject1');
+
+  // use `await mongoose.connect('mongodb://user:password@127.0.0.1:27017/test');` if your database has auth enabled
+}
+
+app.set("view engine","ejs");
+app.set("views",path.join(__dirname,"views"));
+if (engine) {
+    app.engine("ejs", engine);
+}
+
+// session configuration (use env var in production)
+const sessionOption = {
+    secret: process.env.SESSION_SECRET || "mysupersecretkey",
+    resave: false,
+    saveUninitialized: true,
+    cookie: {
+        maxAge: 24 * 60 * 60 * 1000, // 1 day
+        httpOnly: true,
+        secure: app.get('env') === 'production'
+    }
+};
+
+// initialize session middleware BEFORE routes so req.session is available
+app.use(session(sessionOption));
+
+// enable flash messages (requires sessions)
+app.use(flash());
+
+// expose flash messages to all views
+app.use((req, res, next) => {
+    res.locals.success = req.flash('success');
+    res.locals.error = req.flash('error');
+    res.locals.currentUser = req.session.userId;
+    next();
+});
+
+function isLoggedIn(req, res, next) {
+    if (!req.session.userId) {
+        req.flash("error", "Please login first");
+        return res.redirect("/login");
+    }
+    next();
+}
+
+async function isOwner(req, res, next) {
+    const { id } = req.params;
+    const listing = await Listing.findById(id);
+    if (!listing) {
+        req.flash("error", "Listing not found");
+        return res.redirect("/listings");
+    }
+    if (!req.session.userId || listing.owner.toString() !== req.session.userId.toString()) {
+        req.flash("error", "Only the owner can do that");
+        return res.redirect(`/listings/${id}`);
+    }
+    next();
+}
+
+app.get('/',(req,res)=>{
+    // touch the session so a session cookie is created
+    req.session.visited = (req.session.visited || 0) + 1;
+    res.send("Hello World");
+
+});
+
+// debug route: sets a non-httpOnly test cookie and ensures session exists
+app.get('/debug-cookie', (req, res) => {
+    req.session.debug = true;
+    // set a cookie visible in DevTools and document.cookie (httpOnly: false)
+    res.cookie('testcookie', 'hello-world', { maxAge: 60 * 60 * 1000, httpOnly: false });
+    res.json({ session: req.session, message: 'Set testcookie and touched session' });
+});
+
+
+
+//add new listing route
+app.get('/listings/new', isLoggedIn, (req,res)=>{
+    
+    res.render("listing/new");
+});
+//index route to display all listings
+app.get('/listings', isLoggedIn, async (req, res) => {
+    const categories = [
+        "trending",
+        "rooms",
+        "iconic-cities",
+        "mountains",
+        "castles",
+        "amazing-pools",
+        "camping",
+        "farms"
+    ];
+    const selectedCategory = req.query.category;
+    const query = categories.includes(selectedCategory) ? { category: selectedCategory } : {};
+    const alllistings = await Listing.find(query);
+    res.render("listing/index", { alllistings, selectedCategory });      
+        
+        
+              
+       });
+       
+
+       //show route to display a single listing 
+       app.get('/listings/:id', async (req, res) => {
+        const { id } = req.params;
+        const findid=await Listing.findById(id)
+            .populate({
+                path: 'reviews',
+                populate: {
+                    path: 'author'
+                }
+            })
+            .populate('owner')
+
+        if (!findid) {
+            req.flash('error', 'Listing not found');
+            return res.redirect('/listings');
+        }
+
+        res.render("listing/show",{findid});
+    
+       });
+
+        //create route to add a new listing to the database
+         app.post('/listings', isLoggedIn, upload.single("image"), async (req, res) => {
+            try {
+                if (!req.file || !req.file.path) {
+                    req.flash('error', 'Please upload an image');
+                    return res.redirect('/listings/new');
+                }
+                const newlisting = new Listing(req.body.listing);
+                newlisting.image = req.file.path;
+                newlisting.owner = req.session.userId;
+                await newlisting.save();
+                req.flash('success', 'New Listing Created Successfully!');
+                return res.redirect('/listings');
+            } catch (err) {
+                console.error('Error creating listing:', err);
+                req.flash('error', 'Failed to create listing. Please try again.');
+                return res.redirect('/listings/new');
+            }
+         });
+
+         //edit route to display the edit form for a listing
+            app.get('/listings/:id/edit', isLoggedIn, isOwner, async (req, res) => { 
+                const findid=await Listing.findById(req.params.id);
+               
+                res.render("listing/update",{findid});
+             });
+
+             //update route to update a listing in the database
+                app.put('/listings/:id', isLoggedIn, isOwner, upload.single("image"), async (req, res) => {
+                    const { id } = req.params;
+                    try {
+                        const updateData = { ...req.body.listing };
+                        if (req.file && req.file.path) {
+                            updateData.image = req.file.path;
+                        }
+                        const updatedlisting = await Listing.findByIdAndUpdate(id, updateData, { new: true });
+                        req.flash('success', 'Listing updated successfully!');
+                        return res.redirect(`/listings/${updatedlisting._id}`);
+                    } catch (err) {
+                        console.error('Error updating listing:', err);
+                        req.flash('error', 'Failed to update listing. Please try again.');
+                        return res.redirect(`/listings/${id}/edit`);
+                    }
+                });    
+
+                 // fallback POST route for update form (without method-override)
+                 app.post('/listings/:id/update', isLoggedIn, isOwner, upload.single("image"), async (req, res) => {
+                     const { id } = req.params;
+                     try {
+                         const updateData = { ...req.body.listing };
+                         if (req.file && req.file.path) {
+                             updateData.image = req.file.path;
+                         }
+                         await Listing.findByIdAndUpdate(id, updateData, { new: true });
+                         req.flash('success', 'Listing updated successfully!');
+                         return res.redirect(`/listings/${id}`);
+                     } catch (err) {
+                         console.error('Error updating listing (fallback):', err);
+                         req.flash('error', 'Failed to update listing. Please try again.');
+                         return res.redirect(`/listings/${id}/edit`);
+                     }
+                 });
+
+                 // delete route to handle form POST from show.ejs
+                 app.post('/listings/:id/delete', isLoggedIn, isOwner, async (req, res) => {
+                     const { id } = req.params;
+                     await Listing.findByIdAndDelete(id);
+                      req.flash('success', 'New Listing delete Successfully!');
+                     res.redirect('/listings');
+                 });
+
+                 // create review route to add a review to a listing
+                 app.post('/listings/:id/reviews', isLoggedIn, async (req, res) => {
+                     const { id } = req.params;
+                     const listing = await Listing.findById(id);
+
+                     if (!listing) {
+                         req.flash('error', 'Listing not found');
+                         return res.redirect('/listings');
+                     }
+
+                     if (listing.owner.toString() !== req.session.userId.toString()) {
+                         req.flash('error', 'Only the listing owner can add a review');
+                         return res.redirect(`/listings/${id}`);
+                     }
+
+                     const newReview = new Review(req.body.review);
+                     newReview.author = req.session.userId;
+                     listing.reviews.push(newReview);
+                     await newReview.save();
+                     await listing.save();
+                     req.flash('success', 'Review added successfully!');
+                     res.redirect(`/listings/${id}`);
+                 });
+
+                 // delete review route (form POST)
+                 app.post('/listings/:id/reviews/:reviewId/delete', isLoggedIn, async (req, res) => {
+                     const { id, reviewId } = req.params;
+                     const listing = await Listing.findById(id);
+
+                     if (!listing) {
+                         req.flash('error', 'Listing not found');
+                         return res.redirect('/listings');
+                     }
+
+                     if (listing.owner.toString() !== req.session.userId.toString()) {
+                         req.flash('error', 'Only the listing owner can delete reviews');
+                         return res.redirect(`/listings/${id}`);
+                     }
+
+                     await Listing.findByIdAndUpdate(id, { $pull: { reviews: reviewId } });
+                     await Review.findByIdAndDelete(reviewId);
+                     req.flash('success', 'Review deleted successfully!');
+                     res.redirect(`/listings/${id}`);
+                 });
+             
+//delete route to delete a listing from the database
+app.delete('/listings/:id', isLoggedIn, isOwner, async (req, res) => {
+    const { id } = req.params;
+    await Listing.findByIdAndDelete(id);
+    res.redirect('/listings');
+});    
+/*sinup page**/
+
+
+app.get("/signup", (req, res) => {
+    res.render("listing/user");
+});
+
+/* post*/
+
+app.post("/signup", async (req, res) => {
+    try {
+        const { username, email, password } = req.body;
+        const salt = crypto.randomBytes(16).toString("hex");
+        const hashedPassword = crypto
+            .scryptSync(password, salt, 64)
+            .toString("hex");
+
+        const newUser = new User({
+            username,
+            email,
+            password: `${salt}:${hashedPassword}`
+        });
+
+        await newUser.save();
+
+        req.flash("success", "Account created successfully!");
+        res.redirect("/listings");
+
+    } catch (err) {
+        req.flash("error", "Signup failed!");
+        res.redirect("/signup");
+    }
+});
+
+/*create a login page*/
+// show login page
+app.get("/login", (req, res) => {
+    res.render("listing/login");
+});
+
+app.post("/login", async (req, res) => {
+    const { email, password } = req.body;
+
+    const foundUser = await User.findOne({ email });
+
+    if (!foundUser) {
+        req.flash("error", "User not found");
+        return res.redirect("/login");
+    }
+
+    const [salt, storedHash] = (foundUser.password || "").split(":");
+    if (!salt || !storedHash) {
+        req.flash("error", "Invalid account password format");
+        return res.redirect("/login");
+    }
+
+    const loginHash = crypto.scryptSync(password, salt, 64).toString("hex");
+    if (storedHash !== loginHash) {
+        req.flash("error", "Wrong password");
+        return res.redirect("/login");
+    }
+
+    req.session.userId = foundUser._id;
+    req.session.email = foundUser.email;
+    req.flash("success", "Welcome back!");
+    res.redirect("/listings");
+});
+/*logout page */
+app.get("/logout", (req, res) => {
+
+    req.session.destroy((err) => {
+        if(err){
+            console.log(err);
+            return res.redirect("/listings");
+        }
+        res.clearCookie("connect.sid");
+        res.render("listing/logout");
+    });
+
+});
+
+
+
+
+app.listen(3000,()=>{
+    console.log("server is running on port 3000");
+});
+
+
+

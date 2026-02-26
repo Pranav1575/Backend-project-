@@ -1,0 +1,90 @@
+<% layout('/layouts/boilerplate') %>
+<body>
+    <h1>Listings</h1>
+
+    <form action="/listings/new">
+        <button type="submit">Add New Listing</button>  
+    </form>
+    <div class="filters container mt-3">
+
+  <div class="d-flex flex-wrap gap-4 justify-content-center text-center">
+
+    <a href="/listings" class="filter-item text-decoration-none text-dark">
+      <i class="bi bi-grid fs-3"></i>
+      <p>All</p>
+    </a>
+
+    <a href="/listings?category=trending" class="filter-item text-decoration-none text-dark">
+      <i class="bi bi-fire fs-3"></i>
+      <p>Trending</p>
+    </a>
+
+    <a href="/listings?category=rooms" class="filter-item text-decoration-none text-dark">
+      <i class="bi bi-door-open fs-3"></i>
+      <p>Rooms</p>
+    </a>
+
+    <a href="/listings?category=iconic-cities" class="filter-item text-decoration-none text-dark">
+      <i class="bi bi-buildings fs-3"></i>
+      <p>Iconic Cities</p>
+    </a>
+
+    <a href="/listings?category=mountains" class="filter-item text-decoration-none text-dark">
+      <i class="bi bi-tree fs-3"></i>
+      <p>Mountains</p>
+    </a>
+
+    <a href="/listings?category=castles" class="filter-item text-decoration-none text-dark">
+      <i class="bi bi-bank fs-3"></i>
+      <p>Castles</p>
+    </a>
+
+    <a href="/listings?category=amazing-pools" class="filter-item text-decoration-none text-dark">
+      <i class="bi bi-water fs-3"></i>
+      <p>Amazing Pools</p>
+    </a>
+
+    <a href="/listings?category=camping" class="filter-item text-decoration-none text-dark">
+      <i class="bi bi-backpack fs-3"></i>
+      <p>Camping</p>
+    </a>
+
+    <a href="/listings?category=farms" class="filter-item text-decoration-none text-dark">
+      <i class="bi bi-flower1 fs-3"></i>
+      <p>Farms</p>
+    </a>
+
+  </div>
+
+</div>
+
+
+   <div class="row g-4">
+    <% for(let listings of alllistings){ %>
+        <div class="col-md-4">
+            <div class="card listing-card h-100">
+                
+                <img src="<%=listings.image %>" 
+                     class="card-img-top listing-img" 
+                     alt="<%= listings.title %>">
+
+                <div class="card-body">
+                    <h5 class="card-title"><%= listings.title %></h5>
+                    <p class="card-text description">
+                        <%= listings.description %>
+                    </p>
+
+                    <p class="price">₹ <%= listings.price %></p>
+
+                    <a href="/listings/<%= listings._id %>" 
+                       class="btn view-btn">
+                       View Details
+                    </a>
+                </div>
+            </div>
+        </div>
+    <% } %>
+</div>
+</body>
+
+ 
