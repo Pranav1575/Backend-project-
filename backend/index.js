@@ -100,6 +100,10 @@ if (isHostedPlatform) {
 const normalizeOrigin = (value = "") => String(value).trim().replace(/\/+$/, "");
 const backendBaseUrl = normalizeOrigin(process.env.VAR_NAME || "");
 const frontendOrigin = normalizeOrigin(process.env.FRONTEND_ORIGIN || "https://dekhoghar.netlify.app");
+const additionalOrigins = (process.env.CORS_ORIGINS || "")
+    .split(",")
+    .map((value) => normalizeOrigin(value))
+    .filter(Boolean);
 const devOrigins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
@@ -113,6 +117,7 @@ const devOrigins = [
 const corsAllowlist = [
     frontendOrigin,
     backendBaseUrl,
+    ...additionalOrigins,
     ...(isProduction ? [] : devOrigins)
 ].filter(Boolean);
 const corsOptions = {
