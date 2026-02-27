@@ -16,7 +16,13 @@ const { MongoStore } = require('connect-mongo');
 const flash = require('connect-flash');
 const crypto = require('crypto');
 const methodOverride = require("method-override");
-const isProduction = process.env.NODE_ENV === "production";
+const isHostedPlatform = Boolean(
+    process.env.NETLIFY ||
+    process.env.RENDER ||
+    process.env.VERCEL ||
+    process.env.AWS_LAMBDA_FUNCTION_NAME
+);
+const isProduction = process.env.NODE_ENV === "production" || isHostedPlatform;
 try {
     // Load local .env when present; hosted platforms still use dashboard env vars.
     require("dotenv").config();
@@ -28,7 +34,7 @@ try {
 const mongoCandidates = [
     { name: "MONGO_URI", value: process.env.MONGO_URI?.trim() },
     { name: "MONGODB_URI", value: process.env.MONGODB_URI?.trim() },
-    ...(!isProduction ? [{ name: "DATABASE_URL", value: process.env.DATABASE_URL?.trim() }] : [])
+    ...(!isHostedPlatform ? [{ name: "DATABASE_URL", value: process.env.DATABASE_URL?.trim() }] : [])
 ].filter((candidate) => candidate.value);
 const isMongoUri = (uri) =>
     typeof uri === "string" && /^mongodb(\+srv)?:\/\//i.test(uri);
@@ -39,7 +45,7 @@ const isLocalMongoUri = (uri) =>
 const validMongoCandidates = mongoCandidates.filter((candidate) => isMongoUri(candidate.value));
 let rawMongoUri = null;
 
-if (isProduction) {
+if (isHostedPlatform) {
     const nonLocalMongoUri = validMongoCandidates.find((candidate) => !isLocalMongoUri(candidate.value));
     if (nonLocalMongoUri) {
         rawMongoUri = nonLocalMongoUri.value;
@@ -59,14 +65,16 @@ if (isProduction) {
 }
 
 if (!rawMongoUri) {
-    throw new Error("MONGO_URI is required in production. Add it to your deployment environment variables.");
+    throw new Error("MONGO_URI is required in cloud deployment. Add it to your deployment environment variables.");
 }
 const mongoUri = rawMongoUri;
-const sessionSecret = process.env.SESSION_SECRET?.trim() || (!isProduction ? "mysupersecretkey" : null);
+const sessionSecret =
+    process.env.SESSION_SECRET?.trim() ||
+    (!isHostedPlatform ? crypto.randomBytes(32).toString("hex") : null);
 if (!sessionSecret) {
-    throw new Error("SESSION_SECRET is required in production. Add it to your deployment environment variables.");
+    throw new Error("SESSION_SECRET is required in cloud deployment. Add it to your deployment environment variables.");
 }
-if (isProduction) {
+if (isHostedPlatform) {
     const missingCloudinaryVars = [
         "CLOUDINARY_CLOUD_NAME",
         "CLOUDINARY_API_KEY",
