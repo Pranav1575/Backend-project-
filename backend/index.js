@@ -100,10 +100,28 @@ if (isHostedPlatform) {
 const normalizeOrigin = (value = "") => String(value).trim().replace(/\/+$/, "");
 const backendBaseUrl = normalizeOrigin(process.env.VAR_NAME || "");
 const frontendOrigin = normalizeOrigin(process.env.FRONTEND_ORIGIN || "https://dekhoghar.netlify.app");
-const corsAllowlist = [frontendOrigin, backendBaseUrl].filter(Boolean);
+const devOrigins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
+    "http://localhost:4200",
+    "http://127.0.0.1:4200"
+];
+const corsAllowlist = [
+    frontendOrigin,
+    backendBaseUrl,
+    ...(isProduction ? [] : devOrigins)
+].filter(Boolean);
 const corsOptions = {
     origin(origin, callback) {
-        if (!origin || corsAllowlist.includes(normalizeOrigin(origin))) {
+        if (!origin) {
+            return callback(null, true);
+        }
+        const normalizedOrigin = normalizeOrigin(origin);
+        if (corsAllowlist.includes(normalizedOrigin)) {
             return callback(null, true);
         }
         return callback(new Error(`CORS blocked for origin: ${origin}`));
