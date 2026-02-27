@@ -2,6 +2,7 @@
 const app=express();
 const mongoose=require('mongoose');
 const path=require('path');
+const fs = require('fs');
 const Listing=require('./models/listing');
 const Review=require('./models/reviews');
 const User = require("./models/user");
@@ -120,7 +121,14 @@ const mongoClientPromise = mongoose
     });
 
 app.set("view engine","ejs");
-app.set("views", path.join(__dirname, "../frontend/views"));
+const viewPathCandidates = [
+    path.join(__dirname, "../frontend/views"),
+    path.join(process.cwd(), "frontend/views")
+];
+const resolvedViewsPath =
+    viewPathCandidates.find((candidate) => fs.existsSync(candidate)) ||
+    viewPathCandidates[0];
+app.set("views", resolvedViewsPath);
 if (engine) {
     app.engine("ejs", engine);
 }

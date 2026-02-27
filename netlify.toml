@@ -1,6 +1,9 @@
 [build]
   functions = "netlify/functions"
 
+[functions]
+  included_files = ["frontend/views/**", "frontend/public/**"]
+
 [[redirects]]
   from = "/*"
   to = "/.netlify/functions/server"
