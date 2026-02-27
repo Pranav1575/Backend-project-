@@ -186,9 +186,7 @@ async function isOwner(req, res, next) {
 }
 
 app.get('/',(req,res)=>{
-    // touch the session so a session cookie is created
-    req.session.visited = (req.session.visited || 0) + 1;
-    res.send("Hello World");
+    res.redirect("/listings");
 
 });
 
@@ -208,7 +206,7 @@ app.get('/listings/new', isLoggedIn, (req,res)=>{
     res.render("listing/new");
 });
 //index route to display all listings
-app.get('/listings', isLoggedIn, async (req, res) => {
+app.get('/listings', async (req, res) => {
     const categories = [
         "trending",
         "rooms",
