@@ -18,33 +18,66 @@ const crypto = require('crypto');
 const methodOverride = require("method-override");
 const isProduction = process.env.NODE_ENV === "production";
 try {
-    // In production, rely on platform env vars (Render/Vercel/etc.), not local .env files.
-    if (!isProduction) {
-        require("dotenv").config();
-    }
+    // Load local .env when present; hosted platforms still use dashboard env vars.
+    require("dotenv").config();
 } catch (err) {
     // dotenv is optional; app still works with fallback values
 }
-const rawMongoUri =
-    process.env.MONGO_URI ||
-    process.env.MONGODB_URI ||
-    process.env.DATABASE_URL ||
-    (!isProduction ? "mongodb://127.0.0.1:27017/BackendProject1" : null);
-const isLocalMongoUri =
-    typeof rawMongoUri === "string" &&
-    /^mongodb(\+srv)?:\/\/(127\.0\.0\.1|localhost)(:|\/|$)/i.test(rawMongoUri);
+// In production, only accept explicit Mongo env vars to avoid conflicts
+// with platform-provided DATABASE_URL values (often Postgres).
+const mongoCandidates = [
+    { name: "MONGO_URI", value: process.env.MONGO_URI?.trim() },
+    { name: "MONGODB_URI", value: process.env.MONGODB_URI?.trim() },
+    ...(!isProduction ? [{ name: "DATABASE_URL", value: process.env.DATABASE_URL?.trim() }] : [])
+].filter((candidate) => candidate.value);
+const isMongoUri = (uri) =>
+    typeof uri === "string" && /^mongodb(\+srv)?:\/\//i.test(uri);
+const isLocalMongoUri = (uri) =>
+    typeof uri === "string" &&
+    /^mongodb(\+srv)?:\/\/(127\.0\.0\.1|localhost)(:|\/|$)/i.test(uri);
+
+const validMongoCandidates = mongoCandidates.filter((candidate) => isMongoUri(candidate.value));
+let rawMongoUri = null;
+
+if (isProduction) {
+    const nonLocalMongoUri = validMongoCandidates.find((candidate) => !isLocalMongoUri(candidate.value));
+    if (nonLocalMongoUri) {
+        rawMongoUri = nonLocalMongoUri.value;
+    } else if (validMongoCandidates.length > 0) {
+        const localVars = validMongoCandidates.map((candidate) => candidate.name).join(", ");
+        throw new Error(
+            `Invalid production MongoDB URI: localhost/127.0.0.1 is not reachable in cloud deploys. Update ${localVars} to your MongoDB Atlas connection string.`
+        );
+    } else if (mongoCandidates.length > 0) {
+        const invalidVars = mongoCandidates.map((candidate) => candidate.name).join(", ");
+        throw new Error(
+            `Invalid MongoDB env value in ${invalidVars}. URI must start with mongodb:// or mongodb+srv://`
+        );
+    }
+} else {
+    rawMongoUri = (validMongoCandidates[0] && validMongoCandidates[0].value) || "mongodb://127.0.0.1:27017/BackendProject1";
+}
+
 if (!rawMongoUri) {
     throw new Error("MONGO_URI is required in production. Add it to your deployment environment variables.");
 }
-if (isProduction && isLocalMongoUri) {
-    throw new Error(
-        "Invalid production MongoDB URI: localhost/127.0.0.1 is not reachable in cloud deploys. Set MONGO_URI (or MONGODB_URI) to your MongoDB Atlas connection string."
-    );
-}
 const mongoUri = rawMongoUri;
-const sessionSecret = process.env.SESSION_SECRET || (!isProduction ? "mysupersecretkey" : null);
+const sessionSecret = process.env.SESSION_SECRET?.trim() || (!isProduction ? "mysupersecretkey" : null);
 if (!sessionSecret) {
     throw new Error("SESSION_SECRET is required in production. Add it to your deployment environment variables.");
+}
+if (isProduction) {
+    const missingCloudinaryVars = [
+        "CLOUDINARY_CLOUD_NAME",
+        "CLOUDINARY_API_KEY",
+        "CLOUDINARY_API_SECRET"
+    ].filter((name) => !process.env[name] || !process.env[name].trim());
+
+    if (missingCloudinaryVars.length > 0) {
+        throw new Error(
+            `Missing required Cloudinary env vars in production: ${missingCloudinaryVars.join(", ")}`
+        );
+    }
 }
 const multer = require("multer");
 const { storage } = require("./cloudConfig");
