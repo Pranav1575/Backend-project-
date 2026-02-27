@@ -69,6 +69,12 @@ if (!rawMongoUri) {
     throw new Error("MongoDB URI missing in cloud deployment. Set one of: MONGO_URI, MONGODB_URI, MONGO_URL, DATABASE_URL (must start with mongodb:// or mongodb+srv://).");
 }
 const mongoUri = rawMongoUri;
+const isSrvMongoUri = /^mongodb\+srv:\/\//i.test(mongoUri);
+const mongoConnectOptions = {
+    serverSelectionTimeoutMS: 15000,
+    socketTimeoutMS: 45000,
+    ...(isSrvMongoUri ? { tls: true } : {})
+};
 const sessionSecret =
     process.env.SESSION_SECRET?.trim() ||
     (!isHostedPlatform ? crypto.randomBytes(32).toString("hex") : null);
@@ -102,17 +108,16 @@ app.use(express.static(path.join(__dirname, "../frontend/public")));
 
 
 
-main().then(() => {
-    console.log("MongoDB Connected Successfully");
-})
-
-.catch(err => console.log(err));
-
-async function main() {
-  await mongoose.connect(mongoUri);
-
-  // use `await mongoose.connect('mongodb://user:password@127.0.0.1:27017/test');` if your database has auth enabled
-}
+const mongoClientPromise = mongoose
+    .connect(mongoUri, mongoConnectOptions)
+    .then(() => {
+        console.log("MongoDB Connected Successfully");
+        return mongoose.connection.getClient();
+    })
+    .catch((err) => {
+        console.error("MongoDB connection failed:", err);
+        throw err;
+    });
 
 app.set("view engine","ejs");
 app.set("views", path.join(__dirname, "../frontend/views"));
@@ -122,7 +127,7 @@ if (engine) {
 
 // session store (use MongoDB, not MemoryStore)
 const store = MongoStore.create({
-    mongoUrl: mongoUri,
+    clientPromise: mongoClientPromise,
     touchAfter: 24 * 3600
 });
 
@@ -186,7 +191,7 @@ async function isOwner(req, res, next) {
 }
 
 app.get('/',(req,res)=>{
-    res.redirect("/listings");
+    res.redirect("/login");
 
 });
 
