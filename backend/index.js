@@ -99,40 +99,11 @@ if (isHostedPlatform) {
 
 const normalizeOrigin = (value = "") => String(value).trim().replace(/\/+$/, "");
 const backendBaseUrl = normalizeOrigin(process.env.VAR_NAME || "");
-const frontendOrigin = normalizeOrigin(process.env.FRONTEND_ORIGIN || "https://dekhoghar.netlify.app");
-const additionalOrigins = (process.env.CORS_ORIGINS || "")
-    .split(",")
-    .map((value) => normalizeOrigin(value))
-    .filter(Boolean);
-const devOrigins = [
+const allowedOrigins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:5174",
-    "http://127.0.0.1:5174",
-    "http://localhost:4200",
-    "http://127.0.0.1:4200"
+    "https://rentedroom.netlify.app"
 ];
-const corsAllowlist = [
-    frontendOrigin,
-    backendBaseUrl,
-    ...additionalOrigins,
-    ...(isProduction ? [] : devOrigins)
-].filter(Boolean);
-const corsOptions = {
-    origin(origin, callback) {
-        if (!origin) {
-            return callback(null, true);
-        }
-        const normalizedOrigin = normalizeOrigin(origin);
-        if (corsAllowlist.includes(normalizedOrigin)) {
-            return callback(null, true);
-        }
-        return callback(new Error(`CORS blocked for origin: ${origin}`));
-    },
-    credentials: true
-};
 
 const multer = require("multer");
 const { storage } = require("./cloudConfig");
@@ -141,7 +112,19 @@ const upload = multer({ storage });
 app.use(express.urlencoded({ extended: true }));
 // parse application/json
 app.use(express.json());
-app.use(cors(corsOptions));
+app.use(cors({
+    origin(origin, callback) {
+        // Postman / mobile apps ke liye
+        if (!origin) return callback(null, true);
+
+        if (allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error("CORS blocked for origin: " + origin));
+        }
+    },
+    credentials: true
+}));
 app.use(methodOverride("_method"));
 app.use(express.static(path.join(__dirname, "../frontend/public")));
 
@@ -191,14 +174,12 @@ const sessionOption = {
     cookie: {
         maxAge: 24 * 60 * 60 * 1000, // 1 day
         httpOnly: true,
-        secure: isProduction,
-        sameSite: isProduction ? "none" : "lax"
+        secure: true,
+        sameSite: "none"
     }
 };
 
-if (isProduction) {
-    app.set("trust proxy", 1);
-}
+app.set("trust proxy", 1);
 
 // initialize session middleware BEFORE routes so req.session is available
 app.use(session(sessionOption));
