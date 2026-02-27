@@ -34,7 +34,8 @@ try {
 const mongoCandidates = [
     { name: "MONGO_URI", value: process.env.MONGO_URI?.trim() },
     { name: "MONGODB_URI", value: process.env.MONGODB_URI?.trim() },
-    ...(!isHostedPlatform ? [{ name: "DATABASE_URL", value: process.env.DATABASE_URL?.trim() }] : [])
+    { name: "MONGO_URL", value: process.env.MONGO_URL?.trim() },
+    { name: "DATABASE_URL", value: process.env.DATABASE_URL?.trim() }
 ].filter((candidate) => candidate.value);
 const isMongoUri = (uri) =>
     typeof uri === "string" && /^mongodb(\+srv)?:\/\//i.test(uri);
