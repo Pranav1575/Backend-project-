@@ -12,7 +12,7 @@ try {
     console.warn("ejs-mate not found, using default EJS engine");
 }
 const session = require('express-session');
-const MongoStore = require('connect-mongo');
+const { MongoStore } = require('connect-mongo');
 const flash = require('connect-flash');
 const crypto = require('crypto');
 const methodOverride = require("method-override");

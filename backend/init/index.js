@@ -3,15 +3,20 @@ const Listing = require('../models/listing');
 const initData = require('./data.js');
 
 
-main().then(() => {
+main()
+  .then(async () => {
     console.log("MongoDB Connected Successfully");
-})
-
-.catch(err => console.log(err));
+    await initDB();
+    process.exit(0);
+  })
+  .catch((err) => {
+    console.log(err);
+    process.exit(1);
+  });
 
 
 async function main() {
-  await mongoose.connect('mongodb://127.0.0.1:27017/BackendProject1 ');
+  await mongoose.connect('mongodb://127.0.0.1:27017/BackendProject1');
 
   // use `await mongoose.connect('mongodb://user:password@127.0.0.1:27017/test');` if your database has auth enabled
 }
@@ -43,4 +48,3 @@ const initDB = async () =>{
      
      
 }
-initDB(); 
