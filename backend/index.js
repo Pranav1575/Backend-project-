@@ -66,7 +66,7 @@ if (isHostedPlatform) {
 }
 
 if (!rawMongoUri) {
-    throw new Error("MONGO_URI is required in cloud deployment. Add it to your deployment environment variables.");
+    throw new Error("MongoDB URI missing in cloud deployment. Set one of: MONGO_URI, MONGODB_URI, MONGO_URL, DATABASE_URL (must start with mongodb:// or mongodb+srv://).");
 }
 const mongoUri = rawMongoUri;
 const sessionSecret =
