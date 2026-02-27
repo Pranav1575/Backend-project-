@@ -394,20 +394,57 @@ app.get("/signup", (req, res) => {
     res.render("listing/user");
 });
 
+function normalizeEmail(email = "") {
+    return String(email).trim().toLowerCase();
+}
+
+function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
+    const hashedPassword = crypto.scryptSync(password, salt, 64).toString("hex");
+    return `${salt}:${hashedPassword}`;
+}
+
+function verifyPassword(plainPassword, storedPassword) {
+    const [salt, storedHash] = (storedPassword || "").split(":");
+    if (!salt || !storedHash) {
+        return false;
+    }
+    const computedHash = crypto.scryptSync(plainPassword, salt, 64).toString("hex");
+    const storedBuffer = Buffer.from(storedHash, "hex");
+    const computedBuffer = Buffer.from(computedHash, "hex");
+    if (storedBuffer.length !== computedBuffer.length) {
+        return false;
+    }
+    return crypto.timingSafeEqual(storedBuffer, computedBuffer);
+}
+
 /* post*/
 
 app.post("/signup", async (req, res) => {
     try {
-        const { username, email, password } = req.body;
-        const salt = crypto.randomBytes(16).toString("hex");
-        const hashedPassword = crypto
-            .scryptSync(password, salt, 64)
-            .toString("hex");
+        const username = String(req.body.username || "").trim();
+        const email = normalizeEmail(req.body.email);
+        const password = String(req.body.password || "");
+
+        if (!username || !email || !password) {
+            req.flash("error", "All fields are required");
+            return res.redirect("/signup");
+        }
+
+        if (password.length < 6) {
+            req.flash("error", "Password must be at least 6 characters");
+            return res.redirect("/signup");
+        }
+
+        const existingUser = await User.findOne({ email });
+        if (existingUser) {
+            req.flash("error", "Email is already registered. Please login.");
+            return res.redirect("/login");
+        }
 
         const newUser = new User({
             username,
             email,
-            password: `${salt}:${hashedPassword}`
+            password: hashPassword(password)
         });
 
         await newUser.save();
@@ -418,6 +455,7 @@ app.post("/signup", async (req, res) => {
         res.redirect("/listings");
 
     } catch (err) {
+        console.error("Signup error:", err);
         req.flash("error", "Signup failed!");
         res.redirect("/signup");
     }
@@ -430,31 +468,36 @@ app.get("/login", (req, res) => {
 });
 
 app.post("/login", async (req, res) => {
-    const { email, password } = req.body;
+    try {
+        const email = normalizeEmail(req.body.email);
+        const password = String(req.body.password || "");
 
-    const foundUser = await User.findOne({ email });
+        if (!email || !password) {
+            req.flash("error", "Email and password are required");
+            return res.redirect("/login");
+        }
 
-    if (!foundUser) {
-        req.flash("error", "User not found");
+        const foundUser = await User.findOne({ email });
+
+        if (!foundUser) {
+            req.flash("error", "User not found");
+            return res.redirect("/login");
+        }
+
+        if (!verifyPassword(password, foundUser.password)) {
+            req.flash("error", "Wrong password");
+            return res.redirect("/login");
+        }
+
+        req.session.userId = foundUser._id;
+        req.session.email = foundUser.email;
+        req.flash("success", "Welcome back!");
+        return res.redirect("/listings");
+    } catch (err) {
+        console.error("Login error:", err);
+        req.flash("error", "Login failed. Please try again.");
         return res.redirect("/login");
     }
-
-    const [salt, storedHash] = (foundUser.password || "").split(":");
-    if (!salt || !storedHash) {
-        req.flash("error", "Invalid account password format");
-        return res.redirect("/login");
-    }
-
-    const loginHash = crypto.scryptSync(password, salt, 64).toString("hex");
-    if (storedHash !== loginHash) {
-        req.flash("error", "Wrong password");
-        return res.redirect("/login");
-    }
-
-    req.session.userId = foundUser._id;
-    req.session.email = foundUser.email;
-    req.flash("success", "Welcome back!");
-    res.redirect("/listings");
 });
 /*logout page */
 app.get("/logout", (req, res) => {
