@@ -17,6 +17,7 @@ const { MongoStore } = require('connect-mongo');
 const flash = require('connect-flash');
 const crypto = require('crypto');
 const methodOverride = require("method-override");
+const cors = require("cors");
 const isHostedPlatform = Boolean(
     process.env.NETLIFY ||
     process.env.RENDER ||
@@ -95,6 +96,21 @@ if (isHostedPlatform) {
         );
     }
 }
+
+const normalizeOrigin = (value = "") => String(value).trim().replace(/\/+$/, "");
+const backendBaseUrl = normalizeOrigin(process.env.VAR_NAME || "");
+const frontendOrigin = normalizeOrigin(process.env.FRONTEND_ORIGIN || "https://dekhoghar.netlify.app");
+const corsAllowlist = [frontendOrigin, backendBaseUrl].filter(Boolean);
+const corsOptions = {
+    origin(origin, callback) {
+        if (!origin || corsAllowlist.includes(normalizeOrigin(origin))) {
+            return callback(null, true);
+        }
+        return callback(new Error(`CORS blocked for origin: ${origin}`));
+    },
+    credentials: true
+};
+
 const multer = require("multer");
 const { storage } = require("./cloudConfig");
 const upload = multer({ storage });
@@ -102,6 +118,7 @@ const upload = multer({ storage });
 app.use(express.urlencoded({ extended: true }));
 // parse application/json
 app.use(express.json());
+app.use(cors(corsOptions));
 app.use(methodOverride("_method"));
 app.use(express.static(path.join(__dirname, "../frontend/public")));
 
@@ -151,9 +168,14 @@ const sessionOption = {
     cookie: {
         maxAge: 24 * 60 * 60 * 1000, // 1 day
         httpOnly: true,
-        secure: app.get('env') === 'production'
+        secure: isProduction,
+        sameSite: isProduction ? "none" : "lax"
     }
 };
+
+if (isProduction) {
+    app.set("trust proxy", 1);
+}
 
 // initialize session middleware BEFORE routes so req.session is available
 app.use(session(sessionOption));
@@ -166,6 +188,7 @@ app.use((req, res, next) => {
     res.locals.success = req.flash('success');
     res.locals.error = req.flash('error');
     res.locals.currentUser = req.session.userId;
+    res.locals.authActionBase = backendBaseUrl;
     next();
 });
 
@@ -421,6 +444,7 @@ function verifyPassword(plainPassword, storedPassword) {
 
 app.post("/signup", async (req, res) => {
     try {
+        console.log("Signup req.body:", req.body);
         const username = String(req.body.username || "").trim();
         const email = normalizeEmail(req.body.email);
         const password = String(req.body.password || "");
@@ -469,6 +493,7 @@ app.get("/login", (req, res) => {
 
 app.post("/login", async (req, res) => {
     try {
+        console.log("Login req.body:", req.body);
         const email = normalizeEmail(req.body.email);
         const password = String(req.body.password || "");
 
